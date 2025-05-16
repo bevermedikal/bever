@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPu
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QIcon
 from patient_form import PatientForm
+from patient_list import PatientList
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -23,6 +24,11 @@ class MainWindow(QMainWindow):
         self.patient_form = PatientForm()
         self.patient_form.return_to_main.connect(self.show_main_menu)
         self.stacked_widget.addWidget(self.patient_form)
+        
+        # Create patient list page
+        self.patient_list = PatientList()
+        self.patient_list.return_to_main.connect(self.show_main_menu)
+        self.stacked_widget.addWidget(self.patient_list)
         
     def setup_main_menu(self):
         layout = QVBoxLayout(self.main_menu)
@@ -54,11 +60,12 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentWidget(self.main_menu)
         
     def new_patient(self):
-        self.patient_form.clear_form()  # Clear form before showing
+        self.patient_form.clear_form()
         self.stacked_widget.setCurrentWidget(self.patient_form)
         
     def view_patients(self):
-        print("View Patients")
+        self.patient_list.load_patients()
+        self.stacked_widget.setCurrentWidget(self.patient_list)
         
     def settings(self):
         print("Settings")
