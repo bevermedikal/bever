@@ -6,45 +6,56 @@ from PyQt6.QtCore import Qt, QDate, pyqtSignal
 import uuid
 import re
 import sqlite3
+from contextlib import contextmanager
+
+class DatabaseConnection:
+    def __init__(self, db_name='patients.db'):
+        self.db_name = db_name
+
+    @contextmanager
+    def connect(self):
+        conn = sqlite3.connect(self.db_name)
+        try:
+            yield conn
+        finally:
+            conn.close()
 
 class PatientForm(QWidget):
-    # Signal to notify main window when form needs to return
     return_to_main = pyqtSignal()
     
     def __init__(self):
         super().__init__()
+        self.db = DatabaseConnection()
         self.init_ui()
         self.setup_database()
         
     def setup_database(self):
-        self.conn = sqlite3.connect('patients.db')
-        self.cursor = self.conn.cursor()
-        
-        # Create patients table if it doesn't exist
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS patients (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                tc TEXT UNIQUE,
-                gender TEXT,
-                birth_date TEXT,
-                phone TEXT,
-                email TEXT,
-                height INTEGER,
-                weight REAL,
-                foot_size INTEGER,
-                dominant_foot TEXT,
-                gait_type TEXT,
-                posture_type TEXT,
-                clinical_notes TEXT,
-                surgery INTEGER,
-                heel_spur INTEGER,
-                hallux INTEGER,
-                pes_planus INTEGER,
-                pes_cavus INTEGER
-            )
-        ''')
-        self.conn.commit()
+        with self.db.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS patients (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    tc TEXT UNIQUE,
+                    gender TEXT,
+                    birth_date TEXT,
+                    phone TEXT,
+                    email TEXT,
+                    height INTEGER,
+                    weight REAL,
+                    foot_size INTEGER,
+                    dominant_foot TEXT,
+                    gait_type TEXT,
+                    posture_type TEXT,
+                    clinical_notes TEXT,
+                    surgery INTEGER,
+                    heel_spur INTEGER,
+                    hallux INTEGER,
+                    pes_planus INTEGER,
+                    pes_cavus INTEGER
+                )
+            ''')
+            conn.commit()
         
     def init_ui(self):
         layout = QVBoxLayout()
@@ -162,11 +173,32 @@ class PatientForm(QWidget):
     def validate_tc(self, tc):
         if not tc.isdigit() or len(tc) != 11:
             return False
+            
+        # TC kimlik algoritması kontrolü
+        digits = [int(d) for d in tc]
+        
+        # 1) İlk hane 0 olamaz
+        if digits[0] == 0:
+            return False
+            
+        # 2) 1, 3, 5, 7, 9. hanelerin toplamının 7 katından, 2, 4, 6, 8. hanelerin toplamı çıkartıldığında,
+        #    elde edilen sonucun 10'a bölümünden kalan, 10. haneyi vermelidir.
+        odd_sum = sum(digits[0:9:2])
+        even_sum = sum(digits[1:8:2])
+        if ((odd_sum * 7) - even_sum) % 10 != digits[9]:
+            return False
+            
+        # 3) İlk 10 hanenin toplamının 10'a bölümünden kalan, son haneyi vermelidir.
+        if sum(digits[:10]) % 10 != digits[10]:
+            return False
+            
         return True
         
     def validate_phone(self, phone):
+        # Remove spaces and check format
+        phone = phone.replace(" ", "")
         phone_pattern = re.compile(r'^05\d{9}$')
-        return bool(phone_pattern.match(phone.replace(" ", "")))
+        return bool(phone_pattern.match(phone))
         
     def validate_email(self, email):
         email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
@@ -222,33 +254,35 @@ class PatientForm(QWidget):
         patient_id = str(uuid.uuid4())
         
         try:
-            self.cursor.execute('''
-                INSERT INTO patients VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                )
-            ''', (
-                patient_id,
-                self.name_edit.text().strip(),
-                self.tc_edit.text().strip(),
-                self.gender_combo.currentText(),
-                self.birth_date.date().toString("dd.MM.yyyy"),
-                self.phone_edit.text().strip(),
-                self.email_edit.text().strip(),
-                self.height_spin.value(),
-                self.weight_spin.value(),
-                self.foot_size_spin.value(),
-                self.dominant_foot.currentText(),
-                self.gait_type.currentText(),
-                self.posture_type.currentText(),
-                self.clinical_notes.toPlainText().strip(),
-                self.surgery_check.isChecked(),
-                self.heel_spur_check.isChecked(),
-                self.hallux_check.isChecked(),
-                self.pes_planus_check.isChecked(),
-                self.pes_cavus_check.isChecked()
-            ))
-            
-            self.conn.commit()
+            with self.db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO patients VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
+                ''', (
+                    patient_id,
+                    self.name_edit.text().strip(),
+                    self.tc_edit.text().strip(),
+                    self.gender_combo.currentText(),
+                    self.birth_date.date().toString("dd.MM.yyyy"),
+                    self.phone_edit.text().strip(),
+                    self.email_edit.text().strip(),
+                    self.height_spin.value(),
+                    self.weight_spin.value(),
+                    self.foot_size_spin.value(),
+                    self.dominant_foot.currentText(),
+                    self.gait_type.currentText(),
+                    self.posture_type.currentText(),
+                    self.clinical_notes.toPlainText().strip(),
+                    self.surgery_check.isChecked(),
+                    self.heel_spur_check.isChecked(),
+                    self.hallux_check.isChecked(),
+                    self.pes_planus_check.isChecked(),
+                    self.pes_cavus_check.isChecked()
+                ))
+                conn.commit()
+                
             QMessageBox.information(self, "Başarılı", "Hasta kaydı başarıyla oluşturuldu!")
             self.clear_form()
             
@@ -259,7 +293,3 @@ class PatientForm(QWidget):
                 QMessageBox.warning(self, "Hata", "Veritabanı hatası oluştu!")
         except Exception as e:
             QMessageBox.warning(self, "Hata", f"Beklenmeyen bir hata oluştu: {str(e)}")
-            
-    def closeEvent(self, event):
-        self.conn.close()
-        super().closeEvent(event)

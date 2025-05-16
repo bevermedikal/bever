@@ -54,6 +54,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.setCurrentWidget(self.main_menu)
         
     def new_patient(self):
+        self.patient_form.clear_form()  # Clear form before showing
         self.stacked_widget.setCurrentWidget(self.patient_form)
         
     def view_patients(self):
