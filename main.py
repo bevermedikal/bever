@@ -21,6 +21,7 @@ class MainWindow(QMainWindow):
         
         # Create patient form page
         self.patient_form = PatientForm()
+        self.patient_form.return_to_main.connect(self.show_main_menu)
         self.stacked_widget.addWidget(self.patient_form)
         
     def setup_main_menu(self):
@@ -48,6 +49,9 @@ class MainWindow(QMainWindow):
             layout.addWidget(btn)
             
         layout.addStretch()
+        
+    def show_main_menu(self):
+        self.stacked_widget.setCurrentWidget(self.main_menu)
         
     def new_patient(self):
         self.stacked_widget.setCurrentWidget(self.patient_form)
